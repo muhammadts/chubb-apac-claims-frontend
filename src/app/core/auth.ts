@@ -6,13 +6,18 @@ export type Role = 'Claimant' | 'ClaimsOfficer' | 'Manager';
 export type AppMode = 'mock' | 'api';
 export interface Identity { subject: string; role: Role; markets: string[]; teams: string[]; }
 export interface OidcSettings { issuer?: string; clientId?: string; redirectUri?: string; scope?: string; }
-export interface AppSettings { mode: AppMode; apiBaseUrl: string; oidc: OidcSettings; }
+export interface MarketOption { code: string; name: string; }
+export interface AppSettings { mode: AppMode; apiBaseUrl: string; oidc: OidcSettings; markets: MarketOption[]; }
 declare global { interface Window { __CLAIMS_CONFIG__?: Partial<AppSettings>; } }
 
 export const SETTINGS = new InjectionToken<AppSettings>('APP_SETTINGS', { providedIn: 'root', factory: () => {
   const cfg = window.__CLAIMS_CONFIG__ ?? {};
   const mode = sessionStorage.getItem('claims.mode') ?? cfg.mode;
-  return { mode: mode === 'api' ? 'api' : 'mock', apiBaseUrl: cfg.apiBaseUrl ?? 'http://localhost:4301/api/v1', oidc: cfg.oidc ?? {} };
+  const markets = Array.isArray(cfg.markets) ? cfg.markets.filter((market): market is MarketOption =>
+    typeof market?.code === 'string' && market.code.trim().length > 0 &&
+    typeof market.name === 'string' && market.name.trim().length > 0
+  ) : [];
+  return { mode: mode === 'api' ? 'api' : 'mock', apiBaseUrl: cfg.apiBaseUrl ?? 'http://localhost:4301/api/v1', oidc: cfg.oidc ?? {}, markets };
 } });
 
 export const MOCK_PERSONAS: Identity[] = [

@@ -1,3 +1,12 @@
 import { Routes } from '@angular/router';
-import { WorkspacePage } from '../workspace-page';
-export const CLAIMANT_ROUTES: Routes = [{ path: '', component: WorkspacePage, data: { title: 'Claimant dashboard', eyebrow: 'Claimant workspace', description: 'Your claim activity and next steps.' } }, { path: 'dashboard', component: WorkspacePage, data: { title: 'Claimant dashboard', eyebrow: 'Claimant workspace', description: 'Your claim activity and next steps.' } }, { path: 'claims', component: WorkspacePage, data: { title: 'Your claims', eyebrow: 'Claimant workspace', description: 'View and track your claims.' } }, { path: 'claims/new', component: WorkspacePage, data: { title: 'Start a claim', eyebrow: 'Claimant workspace', description: 'Claim submission will be available in the claimant journey stage.' } }, { path: 'claims/:claimId', component: WorkspacePage, data: { title: 'Claim details', eyebrow: 'Claimant workspace' } }];
+import { ClaimDetailPage } from './claim-detail.page';
+import { ClaimListPage } from './claim-list.page';
+import { ClaimSubmitPage } from './claim-submit.page';
+
+export const CLAIMANT_ROUTES: Routes = [
+  { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+  { path: 'dashboard', component: ClaimListPage },
+  { path: 'claims', component: ClaimListPage },
+  { path: 'claims/new', component: ClaimSubmitPage },
+  { path: 'claims/:claimId', component: ClaimDetailPage },
+];

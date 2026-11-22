@@ -1,6 +1,6 @@
 import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, map } from 'rxjs';
+import { Observable, map, timeout } from 'rxjs';
 
 export type ClaimStatus = 'Submitted' | 'InReview' | 'Assessment' | 'AwaitingInformation' | 'Approved' | 'Rejected' | 'Settled';
 export type LineOfBusiness = 'Motor' | 'Property';
@@ -10,7 +10,11 @@ export interface Contact { name: string; email: string; phone?: string | null; }
 export interface Incident { occurredAt: string; description: string; }
 export interface MotorDetails { vehicleRegistration?: string | null; make?: string | null; model?: string | null; modelYear?: number | null; vehicleUse?: string | null; drivable?: boolean | null; otherPartyInvolved?: boolean | null; }
 export interface PropertyDetails { propertyType?: string | null; addressLine1?: string | null; addressLine2?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; countryCode?: string | null; lossCause?: string | null; affectedAreaDescription?: string | null; habitable?: boolean | null; }
-export interface ClaimSubmission { marketCode: string; lineOfBusiness: LineOfBusiness; contact: Contact; incident: Incident; reportedAt?: string | null; motor?: MotorDetails; property?: PropertyDetails; }
+export interface ClaimSubmissionBase { marketCode: string; contact: Contact; incident: Incident; reportedAt?: string | null; }
+export type ClaimSubmission = ClaimSubmissionBase & (
+  | { lineOfBusiness: 'Motor'; motor: MotorDetails; property?: never }
+  | { lineOfBusiness: 'Property'; property: PropertyDetails; motor?: never }
+);
 export interface ClaimCard { claimId: string; claimNumber: string; marketCode: string; lineOfBusiness: LineOfBusiness; status: ClaimStatus; submittedAt: string; version: number; }
 export interface InformationRequest { requestId: string; question: string; status: string; createdAt: string; }
 export interface ClaimantDetail extends ClaimCard { reportedAt?: string | null; contact: Contact; incident: Incident; motor?: MotorDetails | null; property?: PropertyDetails | null; decision?: { type: 'Approved' | 'Rejected'; date: string; amount?: Money | null } | null; informationRequests: InformationRequest[]; activities: Array<{ occurredAt: string; description: string }>; }
@@ -25,6 +29,7 @@ export interface PerformanceReport { fromUtc: string; toUtc: string; decisionCou
 export interface ExposureReport { asOfUtc: string; groups: Array<{ marketCode: string; currency: string; amount: number; claimCount: number }>; missingReserveCount: number; includedStatuses: ClaimStatus[]; assumption: string; }
 
 const API = '/api/v1';
+const CLAIM_REQUEST_TIMEOUT_MS = 30_000;
 function pageParams(pageSize = 20, cursor?: string): HttpParams {
   let params = new HttpParams().set('pageSize', String(pageSize));
   if (cursor) params = params.set('cursor', cursor);
@@ -40,13 +45,13 @@ function etag(response: HttpResponse<unknown>): string {
 export class ClaimsApi {
   private readonly http = inject(HttpClient);
   submitClaim(body: ClaimSubmission): Observable<{ body: MutationResult; etag: string }> {
-    return this.http.post<MutationResult>(`${API}/claims`, body, { observe: 'response' }).pipe(map((r) => ({ body: r.body!, etag: etag(r) })));
+    return this.http.post<MutationResult>(`${API}/claims`, body, { observe: 'response' }).pipe(timeout({ first: CLAIM_REQUEST_TIMEOUT_MS }), map((r) => ({ body: r.body!, etag: etag(r) })));
   }
-  claimantClaims(pageSize = 20, cursor?: string): Observable<Page<ClaimCard>> { return this.http.get<Page<ClaimCard>>(`${API}/claims`, { params: pageParams(pageSize, cursor) }); }
-  claimantDetail(claimId: string): Observable<{ body: ClaimantDetail; etag: string }> { return this.http.get<ClaimantDetail>(`${API}/claims/${claimId}`, { observe: 'response' }).pipe(map((r) => ({ body: r.body!, etag: etag(r) }))); }
-  claimantStatus(claimId: string): Observable<{ body: { claimId: string; claimNumber: string; status: ClaimStatus; submittedAt: string }; etag: string }> { return this.http.get<{ claimId: string; claimNumber: string; status: ClaimStatus; submittedAt: string }>(`${API}/claims/${claimId}/status`, { observe: 'response' }).pipe(map((r) => ({ body: r.body!, etag: etag(r) }))); }
-  timeline(claimId: string, pageSize = 20, cursor?: string): Observable<Page<{ occurredAt: string; description: string }>> { return this.http.get<Page<{ occurredAt: string; description: string }>>(`${API}/claims/${claimId}/timeline`, { params: pageParams(pageSize, cursor) }); }
-  respondToRequest(claimId: string, requestId: string, responseText: string | undefined, versionEtag: string): Observable<{ body: MutationResult; etag: string }> { return this.mutate(`${API}/claims/${claimId}/information-requests/${requestId}/responses`, { responseText }, versionEtag); }
+  claimantClaims(pageSize = 20, cursor?: string): Observable<Page<ClaimCard>> { return this.http.get<Page<ClaimCard>>(`${API}/claims`, { params: pageParams(pageSize, cursor) }).pipe(timeout({ first: CLAIM_REQUEST_TIMEOUT_MS })); }
+  claimantDetail(claimId: string): Observable<{ body: ClaimantDetail; etag: string }> { return this.http.get<ClaimantDetail>(`${API}/claims/${claimId}`, { observe: 'response' }).pipe(timeout({ first: CLAIM_REQUEST_TIMEOUT_MS }), map((r) => ({ body: r.body!, etag: etag(r) }))); }
+  claimantStatus(claimId: string): Observable<{ body: { claimId: string; claimNumber: string; status: ClaimStatus; submittedAt: string }; etag: string }> { return this.http.get<{ claimId: string; claimNumber: string; status: ClaimStatus; submittedAt: string }>(`${API}/claims/${claimId}/status`, { observe: 'response' }).pipe(timeout({ first: CLAIM_REQUEST_TIMEOUT_MS }), map((r) => ({ body: r.body!, etag: etag(r) }))); }
+  timeline(claimId: string, pageSize = 20, cursor?: string): Observable<Page<{ occurredAt: string; description: string }>> { return this.http.get<Page<{ occurredAt: string; description: string }>>(`${API}/claims/${claimId}/timeline`, { params: pageParams(pageSize, cursor) }).pipe(timeout({ first: CLAIM_REQUEST_TIMEOUT_MS })); }
+  respondToRequest(claimId: string, requestId: string, responseText: string | undefined, versionEtag: string): Observable<{ body: MutationResult; etag: string }> { return this.mutate(`${API}/claims/${claimId}/information-requests/${requestId}/responses`, responseText === undefined ? {} : { responseText }, versionEtag); }
   staffQueue(filters: StaffQueueFilters = {}): Observable<Page<ClaimCard>> {
     let params = new HttpParams();
     for (const [key, value] of Object.entries(filters)) if (value !== undefined) params = params.set(key, String(value));
@@ -66,6 +71,6 @@ export class ClaimsApi {
   exposure() { return this.http.get<ExposureReport>(`${API}/manager/exposure`); }
   private mutate(url: string, body: unknown, versionEtag: string): Observable<{ body: MutationResult; etag: string }> {
     const options = { headers: new HttpHeaders({ 'If-Match': versionEtag }), observe: 'response' as const };
-    return this.http.post<MutationResult>(url, body, options).pipe(map((r) => ({ body: r.body!, etag: etag(r) })));
+    return this.http.post<MutationResult>(url, body, options).pipe(timeout({ first: CLAIM_REQUEST_TIMEOUT_MS }), map((r) => ({ body: r.body!, etag: etag(r) })));
   }
 }

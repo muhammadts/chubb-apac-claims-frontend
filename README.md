@@ -28,6 +28,10 @@ Mock endpoints require mock-only request headers: `x-mock-role` (`Claimant`, `Cl
 
 The typed API service covers the documented claimant, staff, and manager endpoints. It preserves query and JSON field casing, GUID claim route IDs, quoted response ETags and `If-Match`, and separate claimant/staff detail projections. Mock pagination uses an opaque base64url cursor and returns `{ items, nextCursor }`. Mock mutation conflicts return Problem Details with `409`; transitions are limited to documented workflow actions. Manager reports identify fixture assumptions and do not combine currencies or assert SLAs.
 
+Claimant submissions use the fixed Motor and Property DTOs from the backend contract. Market choices have no backend catalog endpoint and are intentionally not seeded: configure only backend-approved `{ code, name }` entries in `window.__CLAIMS_CONFIG__.markets` in `public/claims-config.js`. If the list is absent or empty, the form displays a setup state and cannot submit. Never add policy-number or document-upload fields; those capabilities are not part of the current submission API.
+
+The claimant dashboard/list, typed submission review and confirmation, claim detail, status and timeline, and text-only information-request response are available under `/claimant`. Claim reads are scoped to the signed-in claimant. Writes use a 30-second client timeout; an uncertain submission refreshes the claim list and is never automatically reposted. Information responses use the current detail ETag and reload the claim after success or a `409` conflict.
+
 ## App shell and identity modes
 
 The shared shell displays role-specific links and lazy-loads the claimant, officer, and manager route areas. These client route guards improve navigation only; the ASP.NET backend remains authoritative for authentication, roles, market/team scope, and resource access.
