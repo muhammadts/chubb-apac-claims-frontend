@@ -140,4 +140,39 @@ describe('ClaimsApi contract', () => {
     expect(request.request.params.get('cursor')).toBe('cursor/from-server==');
     request.flush({ items: [], nextCursor: null });
   });
+
+  it('uses only the documented manager routes and the exact performance interval query names', () => {
+    api.workload().subscribe();
+    const workload = http.expectOne('/api/v1/manager/workload');
+    expect(workload.request.method).toBe('GET');
+    expect(workload.request.params.keys()).toEqual([]);
+    workload.flush({ asOfUtc: '2026-03-01T00:00:00.000Z', groups: [], ageingDefinition: 'Backend definition' });
+
+    api.performance('2026-02-01T00:00:00.000Z', '2026-03-01T00:00:00.000Z').subscribe((report) => {
+      expect(report.averageDecisionElapsedDays).toBeNull();
+      expect(report.medianDecisionElapsedDays).toBeNull();
+      expect(report.averageSettlementElapsedDays).toBeNull();
+    });
+    const performance = http.expectOne((request) => request.url === '/api/v1/manager/performance');
+    expect(performance.request.params.keys()).toEqual(['fromUtc', 'toUtc']);
+    expect(performance.request.params.get('fromUtc')).toBe('2026-02-01T00:00:00.000Z');
+    expect(performance.request.params.get('toUtc')).toBe('2026-03-01T00:00:00.000Z');
+    performance.flush({
+      fromUtc: '2026-02-01T00:00:00.000Z',
+      toUtc: '2026-03-01T00:00:00.000Z',
+      decisionCount: 0,
+      averageDecisionElapsedDays: null,
+      medianDecisionElapsedDays: null,
+      missingDecisionDurationCount: 0,
+      settlementCount: 0,
+      averageSettlementElapsedDays: null,
+      missingSettlementDurationCount: 0,
+    });
+
+    api.exposure().subscribe();
+    const exposure = http.expectOne('/api/v1/manager/exposure');
+    expect(exposure.request.method).toBe('GET');
+    expect(exposure.request.params.keys()).toEqual([]);
+    exposure.flush({ asOfUtc: '2026-03-01T00:00:00.000Z', groups: [], missingReserveCount: 0, includedStatuses: [], assumption: 'Server assumption' });
+  });
 });

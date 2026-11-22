@@ -34,6 +34,8 @@ The claimant dashboard/list, typed submission review and confirmation, claim det
 
 Claims officers use `/officer/queue` and `/officer/claims/:claimId`. The queue uses the backend's cursor and supported filters; the workbench reads staff-only details and refreshes the ETag before every action. Team/officer choices are not available from an API: configure approved `teamId`/`displayName` entries and their `officers` (`subjectId`/`displayName`) in `window.__CLAIMS_CONFIG__.staffDirectory.teams`, or assignment remains unavailable. This runtime configuration is public browser data, not a place for secrets. Settlement workflow completion is not a payment.
 
+Managers use `/manager/overview`, `/manager/performance`, and `/manager/exposure` for the scoped workload, date-bounded performance, and exposure APIs. Workload and exposure have no client filters; performance dates are entered as UTC boundaries with an inclusive start and exclusive end (`[fromUtc,toUtc)`). Exposure amounts remain separated by market and currency, and the UI presents backend assumptions and missing-reserve counts without deriving totals or targets.
+
 ## App shell and identity modes
 
 The shared shell displays role-specific links and lazy-loads the claimant, officer, and manager route areas. These client route guards improve navigation only; the ASP.NET backend remains authoritative for authentication, roles, market/team scope, and resource access.

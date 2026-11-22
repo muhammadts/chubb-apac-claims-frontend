@@ -92,9 +92,9 @@ export class ClaimsApi {
   decision(id: string, body: DecisionCommand, e: string) { return this.mutate(`${API}/staff/claims/${id}/decision`, body, e); }
   internalNote(id: string, body: InternalNoteCommand, e: string) { return this.mutate(`${API}/staff/claims/${id}/internal-notes`, body, e); }
   settlementWorkflow(id: string, body: SettlementWorkflowCommand, e: string) { return this.mutate(`${API}/staff/claims/${id}/settlement-workflow`, body, e); }
-  workload() { return this.http.get<WorkloadReport>(`${API}/manager/workload`); }
-  performance(fromUtc: string, toUtc: string) { const params = new HttpParams().set('fromUtc', fromUtc).set('toUtc', toUtc); return this.http.get<PerformanceReport>(`${API}/manager/performance`, { params }); }
-  exposure() { return this.http.get<ExposureReport>(`${API}/manager/exposure`); }
+  workload() { return this.http.get<WorkloadReport>(`${API}/manager/workload`).pipe(timeout({ first: CLAIM_REQUEST_TIMEOUT_MS })); }
+  performance(fromUtc: string, toUtc: string) { const params = new HttpParams().set('fromUtc', fromUtc).set('toUtc', toUtc); return this.http.get<PerformanceReport>(`${API}/manager/performance`, { params }).pipe(timeout({ first: CLAIM_REQUEST_TIMEOUT_MS })); }
+  exposure() { return this.http.get<ExposureReport>(`${API}/manager/exposure`).pipe(timeout({ first: CLAIM_REQUEST_TIMEOUT_MS })); }
   private mutate(url: string, body: unknown, versionEtag: string): Observable<{ body: MutationResult; etag: string }> {
     const options = { headers: new HttpHeaders({ 'If-Match': versionEtag }), observe: 'response' as const };
     return this.http.post<MutationResult>(url, body, options).pipe(timeout({ first: CLAIM_REQUEST_TIMEOUT_MS }), map((r) => ({ body: r.body!, etag: etag(r) })));

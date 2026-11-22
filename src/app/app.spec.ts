@@ -33,7 +33,8 @@ describe('shared shell and identity modes', () => {
     http.expectOne('/api/health').flush({ mode: 'mock' }); await fixture.whenStable();
     fixture.componentInstance.selectPersona('mock-manager'); await fixture.whenStable(); fixture.detectChanges();
     expect(TestBed.inject(Router).url).toBe('/manager/overview');
-    expect(fixture.nativeElement.textContent).toContain('Manager overview');
+    expect(fixture.nativeElement.textContent).toContain('Workload overview');
+    http.expectOne('/api/v1/manager/workload').flush({ asOfUtc: '2026-03-01T00:00:00.000Z', groups: [], ageingDefinition: 'Elapsed UTC days since submission.' });
     await TestBed.inject(Router).navigateByUrl('/officer/queue'); await fixture.whenStable(); fixture.detectChanges();
     expect(TestBed.inject(Router).url).toBe('/forbidden');
     expect(fixture.nativeElement.textContent).toContain('backend authorization remains authoritative');
