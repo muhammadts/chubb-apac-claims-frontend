@@ -9,9 +9,11 @@ import { OfficerWorkbenchPage } from './officer-workbench.page';
 const claimId = '11111111-1111-4111-8111-111111111111';
 const configuredSettings: AppSettings = {
   mode: 'mock',
+  configuredMode: 'mock',
   apiBaseUrl: 'http://localhost:4301/api/v1',
   oidc: {},
   markets: [],
+  claimRefreshIntervalMs: 60_000,
   staffDirectory: {
     teams: [{
       teamId: 'TEAM-TEST',

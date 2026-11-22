@@ -1,4 +1,6 @@
 :host { display:block; min-height:100vh; }
+.skip-link { position:fixed; z-index:20; top:.5rem; left:.5rem; transform:translateY(-200%); padding:.65rem .85rem; border-radius:.3rem; background:#fff; color:#17232e; font-weight:700; }
+.skip-link:focus { transform:translateY(0); }
 .page-shell { min-height:100vh; background:#f5f7fa; }
 .topbar { min-height:72px; padding:.75rem clamp(1rem,4vw,3.5rem); display:flex; align-items:center; justify-content:space-between; gap:1rem; background:#fff; border-bottom:1px solid #e2e6ec; }
 .brand { display:inline-flex; align-items:center; gap:.7rem; color:#18232e; text-decoration:none; font-size:1.05rem; font-weight:650; }
