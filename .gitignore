@@ -39,6 +39,7 @@ build/Release
 
 # Dependency directories
 node_modules/
+.angular/
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
@@ -49,6 +50,7 @@ web_modules/
 
 # Optional npm cache directory
 .npm
+.npm-cache/
 
 # Optional eslint cache
 .eslintcache

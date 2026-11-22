@@ -1,0 +1,35 @@
+<main class="page-shell">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Chubb APAC Claims home">
+      <span class="brand-mark" aria-hidden="true">C</span>
+      <span>Chubb <span class="brand-divider">/</span> Claims</span>
+    </a>
+    <div class="connection" [attr.data-state]="connectionState()" role="status" aria-live="polite">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span>
+        @switch (connectionState()) {
+          @case ('connected') { API connected }
+          @case ('mock') { Mock API connected · Demo data }
+          @case ('unavailable') { API unavailable }
+          @default { Checking connection… }
+        }
+      </span>
+      <button type="button" class="refresh-button" (click)="checkConnection()" [disabled]="connectionState() === 'checking'">
+        Check again
+      </button>
+    </div>
+  </header>
+
+  <section class="welcome" aria-labelledby="welcome-title">
+    <p class="eyebrow">APAC claims platform</p>
+    <h1 id="welcome-title">Claims workspace</h1>
+    <p class="intro">The shared workspace for claimants and claims teams.</p>
+    <div class="setup-note">
+      <span class="note-icon" aria-hidden="true">i</span>
+      <p>Frontend foundation is ready. Workspaces will appear here as each stage is delivered.</p>
+    </div>
+    @if (checkedAt(); as time) {
+      <p class="checked-at">Last connection check: {{ time | date: 'mediumTime' }}</p>
+    }
+  </section>
+</main>
