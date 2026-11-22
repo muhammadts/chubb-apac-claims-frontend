@@ -7,7 +7,10 @@ export type AppMode = 'mock' | 'api';
 export interface Identity { subject: string; role: Role; markets: string[]; teams: string[]; }
 export interface OidcSettings { issuer?: string; clientId?: string; redirectUri?: string; scope?: string; }
 export interface MarketOption { code: string; name: string; }
-export interface AppSettings { mode: AppMode; apiBaseUrl: string; oidc: OidcSettings; markets: MarketOption[]; }
+export interface StaffOfficerOption { subjectId: string; displayName: string; }
+export interface StaffTeamOption { teamId: string; displayName: string; officers: StaffOfficerOption[]; }
+export interface StaffDirectoryConfig { teams: StaffTeamOption[]; }
+export interface AppSettings { mode: AppMode; apiBaseUrl: string; oidc: OidcSettings; markets: MarketOption[]; staffDirectory: StaffDirectoryConfig; }
 declare global { interface Window { __CLAIMS_CONFIG__?: Partial<AppSettings>; } }
 
 export const SETTINGS = new InjectionToken<AppSettings>('APP_SETTINGS', { providedIn: 'root', factory: () => {
@@ -17,7 +20,26 @@ export const SETTINGS = new InjectionToken<AppSettings>('APP_SETTINGS', { provid
     typeof market?.code === 'string' && market.code.trim().length > 0 &&
     typeof market.name === 'string' && market.name.trim().length > 0
   ) : [];
-  return { mode: mode === 'api' ? 'api' : 'mock', apiBaseUrl: cfg.apiBaseUrl ?? 'http://localhost:4301/api/v1', oidc: cfg.oidc ?? {}, markets };
+  const teams = Array.isArray(cfg.staffDirectory?.teams) ? cfg.staffDirectory.teams
+    .filter((team): team is StaffTeamOption =>
+      typeof team?.teamId === 'string' && team.teamId.trim().length > 0 &&
+      typeof team.displayName === 'string' && team.displayName.trim().length > 0 &&
+      Array.isArray(team.officers)
+    )
+    .map((team) => ({
+      ...team,
+      officers: Array.isArray(team.officers) ? team.officers.filter((officer) =>
+        typeof officer?.subjectId === 'string' && officer.subjectId.trim().length > 0 &&
+        typeof officer.displayName === 'string' && officer.displayName.trim().length > 0
+      ) : [],
+    })) : [];
+  return {
+    mode: mode === 'api' ? 'api' : 'mock',
+    apiBaseUrl: cfg.apiBaseUrl ?? 'http://localhost:4301/api/v1',
+    oidc: cfg.oidc ?? {},
+    markets,
+    staffDirectory: { teams },
+  };
 } });
 
 export const MOCK_PERSONAS: Identity[] = [
