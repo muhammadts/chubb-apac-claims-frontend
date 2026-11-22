@@ -5,7 +5,12 @@ const { app, reset } = require('./server');
 const server = app.listen(0, '127.0.0.1');
 const base = new Promise((resolve) => server.once('listening', () => resolve(`http://127.0.0.1:${server.address().port}`)));
 after(() => server.close());
-const headers = (role = 'Claimant') => ({ 'x-mock-role': role, 'x-mock-sub': 'claimant', 'x-mock-market': 'MOCK', 'x-mock-team': 'MOCK-TEAM' });
+const headers = (role = 'Claimant') => ({
+  'x-mock-role': role,
+  'x-mock-sub': role === 'Claimant' ? 'mock-claimant' : role === 'ClaimsOfficer' ? 'mock-officer' : 'mock-manager',
+  'x-mock-market': 'MOCK',
+  'x-mock-team': 'MOCK-TEAM',
+});
 
 test('claimant detail is private and returns a quoted ETag', async () => {
   reset(); const response = await fetch(`${await base}/api/v1/claims/11111111-1111-4111-8111-111111111111`, { headers: headers() });
