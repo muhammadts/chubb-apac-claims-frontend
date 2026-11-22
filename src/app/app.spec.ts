@@ -41,7 +41,7 @@ describe('shared shell and identity modes', () => {
 
   it('does not attach mock identity when configured for API mode', async () => {
     TestBed.resetTestingModule();
-    await TestBed.configureTestingModule({ providers: [provideHttpClient(withInterceptors([authInterceptor])), provideHttpClientTesting(), { provide: SETTINGS, useValue: { mode: 'api', apiBaseUrl: 'https://claims.example/api/v1', oidc: {} } }, authAdapterProvider()] }).compileComponents();
+    await TestBed.configureTestingModule({ providers: [provideHttpClient(withInterceptors([authInterceptor])), provideHttpClientTesting(), { provide: SETTINGS, useValue: { mode: 'api', apiBaseUrl: 'https://claims.example/api/v1', oidc: {}, markets: [] } }, authAdapterProvider()] }).compileComponents();
     const client = TestBed.inject((await import('@angular/common/http')).HttpClient);
     http = TestBed.inject(HttpTestingController);
     client.get('/api/v1/claims').subscribe();
