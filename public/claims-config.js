@@ -5,9 +5,17 @@ window.__CLAIMS_CONFIG__ = {
   // Visible claim-detail refresh interval; set to 0 to disable (allowed range: 30-300 seconds).
   claimRefreshIntervalMs: 60000,
   // Populate only with market codes and display names approved by the backend owner.
-  markets: [],
+  // Default values are deliberately mock-only. Replace them with owner-approved
+  // backend market/team data before using API mode.
+  markets: [{ code: 'MOCK', name: 'Mock market (demo only)' }],
   // Populate only with approved team and officer IDs/names; no directory endpoint exists.
-  staffDirectory: { teams: [] },
+  staffDirectory: {
+    teams: [{
+      teamId: 'MOCK-TEAM',
+      displayName: 'Mock team (demo only)',
+      officers: [{ subjectId: 'mock-officer', displayName: 'Mock officer (demo only)' }],
+    }],
+  },
   oidc: {
     issuer: '',
     clientId: '',

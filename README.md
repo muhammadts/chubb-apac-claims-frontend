@@ -1,71 +1,223 @@
 # Chubb APAC Claims Frontend
 
-Angular application foundation for claimant, claims officer, and manager workspaces. The application uses the existing ASP.NET API as its contract authority. The centralized contract/client is in `src/app/core/claims-api.ts`; the local Express implementation is development-only mock data.
+Angular frontend for claimant, ClaimsOfficer, and Manager claim workspaces. The frontend is a REST-only client for the existing ASP.NET claims backend; the Node/Express API is a development fixture implementation, not a second backend.
 
-## Requirements
+## Architecture
+
+- Angular standalone components and lazy-loaded claimant, officer, and manager route areas.
+- Central typed REST client in `src/app/core/claims-api.ts`.
+- Shared OIDC/mock identity adapter in `src/app/core/auth.ts`.
+- Angular `/api` proxy in API mode or to the local Node mock in demo mode.
+- ASP.NET backend owns SQL, JWT authorization, and its Kafka transactional outbox.
+- Express mock owns only in-memory seeded fixtures and workflow transitions.
+- Browser state is transient. Claim data and drafts are not stored in local storage or session storage. Session storage is used only for a temporary mock/API mode override and OIDC PKCE state.
+
+```text
+Browser -> Angular -> /api -> dev proxy -> ASP.NET :5289
+                              -> Node mock :4301
+```
+
+The frontend never uses Kafka, WebSockets, SSE, notifications, or binary document APIs.
+
+## Prerequisites
 
 - Node.js 24.15 or newer in the Node 24 LTS line
 - npm 11
+- A running ASP.NET backend for API mode
+- An issuer that supports Authorization Code + PKCE for API sign-in
 
-## Install and run
+Pin and use the repository package versions from `package-lock.json`.
 
 ```sh
 npm install
+```
+
+## API mode
+
+`npm start` serves Angular at `http://localhost:4200` and proxies `/api` to `http://localhost:5289` by default.
+
+```sh
+# .env (gitignored)
+CLAIMS_API_TARGET=http://localhost:5289
 npm start
 ```
 
-`npm start` serves Angular at `http://localhost:4200` and proxies `/api` to `http://localhost:5289`, the backend's local HTTP profile. Change the target by copying `.env.example` to `.env` and setting `CLAIMS_API_TARGET` to the backend URL. `.env` is ignored by Git. For a one-off override, set `CLAIMS_API_TARGET` in the process environment before running the command.
+Or provide a one-off process override:
 
-Run Angular and the local mock API together with:
+```sh
+CLAIMS_API_TARGET=http://localhost:5289 npm start
+```
+
+The HTTPS launch profile is `https://localhost:7038`. Set `CLAIMS_API_TARGET` to that URL when using it.
+
+Set public browser configuration in `public/claims-config.js`:
+
+```js
+window.__CLAIMS_CONFIG__ = {
+  mode: 'api',
+  apiBaseUrl: 'http://localhost:5289/api/v1',
+  claimRefreshIntervalMs: 60000,
+  markets: [
+    // Insert only market codes/names approved by the backend owner.
+  ],
+  staffDirectory: { teams: [
+    // Insert only approved team/officer IDs supplied by local configuration.
+  ] },
+  oidc: {
+    issuer: 'https://issuer.example',
+    clientId: 'public-browser-client',
+    redirectUri: 'http://localhost:4200/',
+    scope: 'openid profile',
+  },
+};
+```
+
+The redirect URI must be registered with the issuer. The issuer's discovery document must publish `authorization_endpoint` and `token_endpoint`. This implementation has no client secret, demo bearer token, refresh-token renewal, or backend login endpoint. Access tokens remain in memory.
+
+The JWT must contain a stable `sub`, one of `Claimant`, `ClaimsOfficer`, or `Manager` in `role`/`roles`, and staff team/market scope in `team`/`teams` and `market`/`markets` claims. Navigation guards are not authorization; the backend validates every route.
+
+## Mock demo mode
+
+Run Angular and the local mock together:
 
 ```sh
 npm run start:demo
 ```
 
-The mock listens on `http://localhost:4301`; the demo launcher directs Angular's `/api` proxy to it. The proxy rewrites `/api/health` to mock `GET /health`. `npm run mock` starts only the mock API. Reset deterministic in-memory fixtures with `POST http://localhost:4301/__mock/reset`.
+The mock listens on `http://localhost:4301`; the launcher changes the Angular proxy target to it.
 
-Mock endpoints require mock-only request headers: `x-mock-role` (`Claimant`, `ClaimsOfficer`, or `Manager`), `x-mock-sub`, `x-mock-market`, and `x-mock-team`. The mock never uses these as real API credentials. The seeded fixtures use the conspicuously fake `MOCK` market/team values and `.invalid` claimant email. The Angular identity/persona adapter is a later stage; callers of the mock routes must supply these headers explicitly until then. Every mock response is local fixture data, never a response from the backend.
+For separate processes:
 
-The typed API service covers the documented claimant, staff, and manager endpoints. It preserves query and JSON field casing, GUID claim route IDs, quoted response ETags and `If-Match`, and separate claimant/staff detail projections. Mock pagination uses an opaque base64url cursor and returns `{ items, nextCursor }`. Mock mutation conflicts return Problem Details with `409`; transitions are limited to documented workflow actions. Manager reports identify fixture assumptions and do not combine currencies or assert SLAs.
+```sh
+npm run mock
+npm start
+```
 
-Claimant submissions use the fixed Motor and Property DTOs from the backend contract. Market choices have no backend catalog endpoint and are intentionally not seeded: configure only backend-approved `{ code, name }` entries in `window.__CLAIMS_CONFIG__.markets` in `public/claims-config.js`. If the list is absent or empty, the form displays a setup state and cannot submit. Never add policy-number or document-upload fields; those capabilities are not part of the current submission API.
+Set `mode: 'mock'` and `apiBaseUrl: 'http://localhost:4301/api/v1'` in `public/claims-config.js`. The default file contains conspicuously named `MOCK` demo configuration and personas.
 
-The claimant dashboard/list, typed submission review and confirmation, claim detail, status and timeline, and text-only information-request response are available under `/claimant`. Claim reads are scoped to the signed-in claimant. Writes use a 30-second client timeout; an uncertain submission refreshes the claim list and is never automatically reposted. Information responses use the current detail ETag and reload the claim after success or a `409` conflict.
+Reset in-memory fixtures:
 
-Claims officers use `/officer/queue` and `/officer/claims/:claimId`. The queue uses the backend's cursor and supported filters; the workbench reads staff-only details and refreshes the ETag before every action. Team/officer choices are not available from an API: configure approved `teamId`/`displayName` entries and their `officers` (`subjectId`/`displayName`) in `window.__CLAIMS_CONFIG__.staffDirectory.teams`, or assignment remains unavailable. This runtime configuration is public browser data, not a place for secrets. Settlement workflow completion is not a payment.
+```sh
+curl -X POST http://localhost:4301/__mock/reset
+```
 
-Managers use `/manager/overview`, `/manager/performance`, and `/manager/exposure` for the scoped workload, date-bounded performance, and exposure APIs. Workload and exposure have no client filters; performance dates are entered as UTC boundaries with an inclusive start and exclusive end (`[fromUtc,toUtc)`). Exposure amounts remain separated by market and currency, and the UI presents backend assumptions and missing-reserve counts without deriving totals or targets.
+The persona selector provides:
 
-Claimant and officer claim-detail views refresh visible details every 60 seconds by default. Set public `claimRefreshIntervalMs` in `public/claims-config.js` to a value from 30000 to 300000, or `0` to disable refresh. Polling pauses while the document is hidden and is torn down when the detail view is left. The views show the last refresh time. This is periodic REST polling only; there are no push, notification, or browser Kafka updates. Manager reports remain manually refreshed.
+- Claimant: `mock-claimant`
+- ClaimsOfficer: `mock-officer`
+- Manager: `mock-manager`
 
-## App shell and identity modes
+The persona sends `x-mock-*` headers only to the local mock. The interceptor never adds bearer tokens or mock headers to a real API target.
 
-The shared shell displays role-specific links and lazy-loads the claimant, officer, and manager route areas. These client route guards improve navigation only; the ASP.NET backend remains authoritative for authentication, roles, market/team scope, and resource access.
+## Supported routes
 
-Runtime settings are in `public/claims-config.js`, which is public browser configuration and must never contain secrets. Set `mode` to `mock` for the local demo or `api` for the ASP.NET API. Set `apiBaseUrl` to the same target used by the `/api` development proxy. Mock identity headers are attached only in mock mode when this configured URL uses `localhost`, `127.0.0.1`, or `::1` on port `4301`. The mock selector exposes the explicit local claimant, officer, and manager fixture personas, all scoped to the fixture's `MOCK` market and `MOCK-TEAM` team.
+All routes are under `/api/v1`. IDs are GUID route keys.
 
-API mode uses a browser Authorization Code + PKCE redirect with settings for `issuer`, `clientId`, `redirectUri`, and optional `scope`. Configure the identity provider to allow the exact redirect URI and public-client token exchange. No client secret or demo token is used. Access tokens stay in memory and are sent as bearer tokens only to app API requests. The current slice does not implement refresh-token renewal; after expiration the user must sign in again. Role parsing is only for navigation visibility and does not grant backend access. If OIDC settings are missing, the shell explains how to configure API sign-in and mock mode remains selectable through runtime configuration.
+### Claimant
 
-The shell keeps the configured mode and any temporary mode override separate. Switching from API mode to the local mock is offered only when `apiBaseUrl` points to the local mock on port 4301; API-mode bearer tokens are not attached to that local mock target. If the configured mode is API, a mock session can return to it without changing runtime configuration. A `401` clears the in-memory API identity/token so the sign-in action is available again. No claim data or form drafts are written to local or session storage; session storage is used only for temporary mode selection and OIDC PKCE state.
+| Method | Route | Contract |
+|---|---|---|
+| POST | `/claims` | Fixed Motor/Property submission; returns mutation result and ETag |
+| GET | `/claims` | Own claims, opaque cursor paging |
+| GET | `/claims/{claimId}` | Claimant-safe detail and ETag |
+| GET | `/claims/{claimId}/status` | Status and ETag |
+| GET | `/claims/{claimId}/timeline` | Claimant-visible timeline paging |
+| POST | `/claims/{claimId}/information-requests/{requestId}/responses` | Text response, current `If-Match` |
 
-The backend OpenAPI endpoint was unavailable when this contract layer was prepared. See [contracts/README.md](contracts/README.md): live schema comparison is unverified and the architecture document remains the checked-in contract source.
+### Claims officer
+
+| Method | Route | Contract |
+|---|---|---|
+| GET | `/staff/claims` | Scoped, cursor-paginated queue |
+| GET | `/staff/claims/{claimId}` | Staff detail and ETag |
+| POST | `/staff/claims/{claimId}/assignment` | Team/officer assignment |
+| POST | `/staff/claims/{claimId}/review` | Start review |
+| POST | `/staff/claims/{claimId}/information-requests` | Request information |
+| POST | `/staff/claims/{claimId}/resume-review` | Resume review |
+| POST | `/staff/claims/{claimId}/assessments` | Assessment and optional reserve |
+| POST | `/staff/claims/{claimId}/decision` | Approved/Rejected decision |
+| POST | `/staff/claims/{claimId}/internal-notes` | Staff-only note |
+| POST | `/staff/claims/{claimId}/settlement-workflow` | Records workflow completion; does not pay |
+
+### Manager
+
+| Method | Route | Contract |
+|---|---|---|
+| GET | `/manager/workload` | Scoped workload and ageing |
+| GET | `/manager/performance` | From/to UTC interval report |
+| GET | `/manager/exposure` | Market/currency exposure groups |
+
+### Platform
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/health` | Health check through `/api/health` |
+| GET | `/openapi/v1.json` | Development OpenAPI on backend |
+| GET | `/swagger` | Development Swagger UI on backend |
+
+The live ASP.NET OpenAPI endpoint was not available during earlier frontend stages. The architecture document and actual centralized client remain the contract source until a reviewed `contracts/backend-openapi-v1.json` snapshot is added.
+
+## Demo walkthrough
+
+1. Run `npm run start:demo`.
+2. Open `http://localhost:4200`.
+3. Select the Claimant persona.
+4. Open `Start a claim`, choose `MOCK`, enter the fixed Motor or Property fields, review, and submit.
+5. Open the submitted claim or seeded `MOCK-0002`.
+6. For `MOCK-0002`, the officer persona can read the open information request and request/answer text as permitted.
+7. Use the Officer persona and open `/officer/queue`.
+8. Open a seeded claim and exercise assignment, review, information request, assessment/reserve, decision, internal note, and settlement workflow as status transitions permit.
+9. Use the Manager persona to open overview, performance, and exposure. The mock exposure page intentionally reports no cross-currency amounts.
+10. Reset fixtures with `POST /__mock/reset` when restarting the scenario.
+
+Deep links and role routes are guard-protected in the browser, but the backend remains authoritative. A user can switch personas only in mock mode.
+
+## Contract behavior
+
+- Read quoted `ETag` response headers and send the exact value as `If-Match` on mutations.
+- On success, replace the local ETag and refresh detail state.
+- On `409`, reload the claim and require a deliberate retry; stale writes are not replayed.
+- Cursor values are opaque. `pageSize` is 1–100 and reset when filters change.
+- Problem Details map to field, page, or banner errors for `400`, `401`, `403`, `404`, `409`, and `5xx`.
+- Claim submissions have a 30-second timeout. An unknown submission outcome refreshes the claimant list before any resubmission invitation.
+- Claim and officer detail views poll visible REST state at 30–300 seconds, pause when hidden, and show last-refresh time. Manager reports refresh manually.
+
+## Known limits
+
+The frontend intentionally does not implement:
+
+- document upload/download or attachments
+- policy lookup or policy-number submission
+- market catalog discovery
+- teams/officer directory discovery
+- notifications, WebSocket, SSE, Kafka browser clients
+- idempotency keys
+- claimant staff rationale
+- cross-currency totals or inferred SLAs
+
+Configured market and staff values must be supplied or approved outside this repository. Assignment and submission show setup states when configuration is absent. Settlement workflow completion is not payment.
 
 ## Checks
 
 ```sh
 npm run build
-npm test
+npm test -- --watch=false
 npm run test:contracts
 ```
 
-The Angular CLI uses standalone components, strict TypeScript settings, and Vitest for unit tests. API configuration is local development configuration only; do not put access tokens or secrets in frontend files.
+Contract tests use the Express mock. Angular tests use Angular HttpTestingController fixtures and do not require a backend or issuer.
 
-## Structure
+## Security and privacy
 
-- `src/app/core/` — application-wide services and configuration
-- `src/app/shared/` — shared UI building blocks
-- `src/app/features/` — lazy-loaded role workspaces (added in later stages)
-- `mock-api/` — local Express API for development walkthroughs
-- `docs/` — architecture and backend integration contract
+- Never commit access tokens, client secrets, issuer admin credentials, or real claim data.
+- Runtime configuration is public browser data.
+- Keep claims and drafts out of local/session storage; the application only uses session storage for PKCE state and temporary mode selection.
+- Use HTTPS and exact issuer redirect URIs outside local development.
+- Mock identities and the `MOCK` market/team are demo-only and must not be sent to the real API.
+- Staff detail and rationale are staff-only UI projections; the backend remains the final access control.
 
-See [the architecture and backend integration plan](docs/Claims_Frontend_Architecture_and_Backend_Integration.md) before implementing future stages.
+## Candidate repository assessment
+
+The public `naeemabbas05/insurance-claims-frontend` README/repository listing was used as a feature/presentation reference only. Useful ideas include separate workspaces, typed API access, reusable loading/error feedback, and accessibility/responsive focus.
+
+It is not a drop-in client for this backend. Its candidate routes, claim-reference model, reports, attachment/notification paths, and dynamic form assumptions differ from this contract. The current implementation therefore follows the checked-in architecture and the actual `/api/v1` routes, fixed Motor/Property DTOs, GUID claim IDs, ETags, and cursor contracts.
