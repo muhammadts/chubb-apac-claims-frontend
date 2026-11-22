@@ -15,9 +15,24 @@ describe('ClaimsApi contract', () => {
 
   it('preserves exact staff query names and page response shape', () => {
     let result: unknown;
-    api.staffQueue({ market: 'MOCK', status: 'Submitted', pageSize: 5, cursor: 'opaque' }).subscribe((value) => result = value);
+    api.staffQueue({
+      market: 'APAC',
+      status: 'Submitted',
+      teamId: 'team-configured',
+      officerId: 'officer-configured',
+      submittedFrom: '2026-01-01',
+      submittedTo: '2026-01-31',
+      incidentFrom: '2025-12-01',
+      incidentTo: '2025-12-31',
+      claimNumber: 'CL-1',
+      pageSize: 5,
+      cursor: 'opaque',
+    }).subscribe((value) => result = value);
     const request = http.expectOne((r) => r.url === '/api/v1/staff/claims');
-    expect(request.request.params.keys()).toEqual(['market', 'status', 'pageSize', 'cursor']);
+    expect(request.request.params.keys()).toEqual([
+      'market', 'status', 'teamId', 'officerId', 'submittedFrom', 'submittedTo',
+      'incidentFrom', 'incidentTo', 'claimNumber', 'pageSize', 'cursor',
+    ]);
     expect(request.request.params.get('cursor')).toBe('opaque');
     request.flush({ items: [], nextCursor: null });
     expect(result).toEqual({ items: [], nextCursor: null });
@@ -32,6 +47,40 @@ describe('ClaimsApi contract', () => {
     expect(request.request.headers.get('If-Match')).toBe('"7"');
     request.flush({ claimId: '11111111-1111-4111-8111-111111111111', claimNumber: 'X', status: 'InReview', version: 8 }, { headers: { ETag: '"8"' } });
     expect(result).toEqual({ body: { claimId: '11111111-1111-4111-8111-111111111111', claimNumber: 'X', status: 'InReview', version: 8 }, etag: '"8"' });
+  });
+
+  it('reads staff detail with its ETag and preserves the staff-only projection', () => {
+    let result: unknown;
+    api.staffDetail('11111111-1111-4111-8111-111111111111').subscribe((response) => result = response);
+    const request = http.expectOne('/api/v1/staff/claims/11111111-1111-4111-8111-111111111111');
+    request.flush({ claimId: '11111111-1111-4111-8111-111111111111', decisionRationale: 'Staff-only rationale' }, { headers: { ETag: '"12"' } });
+    expect(result).toEqual({
+      body: { claimId: '11111111-1111-4111-8111-111111111111', decisionRationale: 'Staff-only rationale' },
+      etag: '"12"',
+    });
+  });
+
+  it('uses the exact documented staff routes, bodies, and If-Match value', () => {
+    const claimId = '11111111-1111-4111-8111-111111111111';
+    const etag = '"17"';
+    const actions = [
+      { path: `/api/v1/staff/claims/${claimId}/assignment`, body: { teamId: 'configured-team', officerSubjectId: 'configured-officer', reason: 'Reason' }, run: () => api.assignment(claimId, { teamId: 'configured-team', officerSubjectId: 'configured-officer', reason: 'Reason' }, etag) },
+      { path: `/api/v1/staff/claims/${claimId}/review`, body: null, run: () => api.review(claimId, etag) },
+      { path: `/api/v1/staff/claims/${claimId}/information-requests`, body: { question: 'Question' }, run: () => api.informationRequest(claimId, { question: 'Question' }, etag) },
+      { path: `/api/v1/staff/claims/${claimId}/resume-review`, body: null, run: () => api.resumeReview(claimId, etag) },
+      { path: `/api/v1/staff/claims/${claimId}/assessments`, body: { assessmentType: 'Review', rationale: 'Rationale' }, run: () => api.assessment(claimId, { assessmentType: 'Review', rationale: 'Rationale' }, etag) },
+      { path: `/api/v1/staff/claims/${claimId}/decision`, body: { type: 'Approved', reason: 'Reason' }, run: () => api.decision(claimId, { type: 'Approved', reason: 'Reason' }, etag) },
+      { path: `/api/v1/staff/claims/${claimId}/internal-notes`, body: { noteText: 'Private note' }, run: () => api.internalNote(claimId, { noteText: 'Private note' }, etag) },
+      { path: `/api/v1/staff/claims/${claimId}/settlement-workflow`, body: {}, run: () => api.settlementWorkflow(claimId, {}, etag) },
+    ];
+    for (const action of actions) {
+      action.run().subscribe();
+      const request = http.expectOne(action.path);
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toEqual(action.body);
+      expect(request.request.headers.get('If-Match')).toBe(etag);
+      request.flush({ claimId, claimNumber: 'CL-1', status: 'InReview', version: 18 }, { headers: { ETag: '"18"' } });
+    }
   });
 
   it('requires response ETags on reads', () => {

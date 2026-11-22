@@ -4,6 +4,8 @@ window.__CLAIMS_CONFIG__ = {
   apiBaseUrl: 'http://localhost:4301/api/v1',
   // Populate only with market codes and display names approved by the backend owner.
   markets: [],
+  // Populate only with approved team and officer IDs/names; no directory endpoint exists.
+  staffDirectory: { teams: [] },
   oidc: {
     issuer: '',
     clientId: '',
