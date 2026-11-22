@@ -8,6 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "mock": "node mock-api/src/server.js",
+    "test:contracts": "node --test mock-api/src/server.test.js",
     "start:demo": "node scripts/start-demo.mjs"
   },
   "private": true,
