@@ -1,6 +1,7 @@
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { Injectable, InjectionToken, Signal, inject, signal } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
+import { catchError, throwError } from 'rxjs';
 
 export type Role = 'Claimant' | 'ClaimsOfficer' | 'Manager';
 export type AppMode = 'mock' | 'api';
@@ -10,12 +11,19 @@ export interface MarketOption { code: string; name: string; }
 export interface StaffOfficerOption { subjectId: string; displayName: string; }
 export interface StaffTeamOption { teamId: string; displayName: string; officers: StaffOfficerOption[]; }
 export interface StaffDirectoryConfig { teams: StaffTeamOption[]; }
-export interface AppSettings { mode: AppMode; apiBaseUrl: string; oidc: OidcSettings; markets: MarketOption[]; staffDirectory: StaffDirectoryConfig; }
+export interface AppSettings { mode: AppMode; configuredMode: AppMode; apiBaseUrl: string; oidc: OidcSettings; markets: MarketOption[]; staffDirectory: StaffDirectoryConfig; claimRefreshIntervalMs: number; }
 declare global { interface Window { __CLAIMS_CONFIG__?: Partial<AppSettings>; } }
 
 export const SETTINGS = new InjectionToken<AppSettings>('APP_SETTINGS', { providedIn: 'root', factory: () => {
   const cfg = window.__CLAIMS_CONFIG__ ?? {};
-  const mode = sessionStorage.getItem('claims.mode') ?? cfg.mode;
+  const configuredMode = cfg.mode === 'api' ? 'api' : 'mock';
+  const selectedMode = sessionStorage.getItem('claims.mode');
+  const mode = selectedMode === 'api' || selectedMode === 'mock' ? selectedMode : configuredMode;
+  const configuredRefreshInterval = cfg.claimRefreshIntervalMs;
+  const claimRefreshIntervalMs = configuredRefreshInterval === 0 ? 0
+    : typeof configuredRefreshInterval === 'number' && configuredRefreshInterval >= 30_000 && configuredRefreshInterval <= 300_000
+      ? configuredRefreshInterval
+      : 60_000;
   const markets = Array.isArray(cfg.markets) ? cfg.markets.filter((market): market is MarketOption =>
     typeof market?.code === 'string' && market.code.trim().length > 0 &&
     typeof market.name === 'string' && market.name.trim().length > 0
@@ -35,10 +43,12 @@ export const SETTINGS = new InjectionToken<AppSettings>('APP_SETTINGS', { provid
     })) : [];
   return {
     mode: mode === 'api' ? 'api' : 'mock',
+    configuredMode,
     apiBaseUrl: cfg.apiBaseUrl ?? 'http://localhost:4301/api/v1',
     oidc: cfg.oidc ?? {},
     markets,
     staffDirectory: { teams },
+    claimRefreshIntervalMs,
   };
 } });
 
@@ -53,6 +63,7 @@ export abstract class AuthAdapter {
   abstract readonly mode: AppMode;
   abstract readonly oidcConfigured: boolean;
   abstract selectPersona(identity: Identity): void;
+  abstract expireSession(): void;
   abstract signIn(): Promise<void>;
   abstract completeSignIn(): Promise<void>;
   abstract token(): string | null;
@@ -68,6 +79,7 @@ export class MockAuthAdapter extends AuthAdapter {
     const fixture = MOCK_PERSONAS.find((p) => p.subject === identity.subject && p.role === identity.role);
     if (fixture) this._identity.set(fixture);
   }
+  expireSession(): void {}
   async signIn(): Promise<void> { return; }
   async completeSignIn(): Promise<void> { return; }
   token(): string | null { return null; }
@@ -82,6 +94,10 @@ export class OidcAuthAdapter extends AuthAdapter {
   readonly oidcConfigured = !!(this.settings.oidc.issuer && this.settings.oidc.clientId && this.settings.oidc.redirectUri);
   private accessToken: string | null = null;
   selectPersona(_identity: Identity): void { /* Personas are mock-only. */ }
+  expireSession(): void {
+    this.accessToken = null;
+    this._identity.set(null);
+  }
   async signIn(): Promise<void> {
     if (!this.oidcConfigured) return;
     const settings = this.settings.oidc;
@@ -129,17 +145,23 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   if (!req.url.includes('/api/')) return next(req);
   if (auth.mode === 'api') {
     const token = auth.token();
-    return next(token ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }) : req);
+    const request = token && !isLocalMockApi(settings.apiBaseUrl)
+      ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
+      : req;
+    return next(request).pipe(catchError((error: unknown) => {
+      if (error instanceof HttpErrorResponse && error.status === 401) auth.expireSession();
+      return throwError(() => error);
+    }));
   }
-  if (auth.mode === 'mock' && isLocalMock(settings.apiBaseUrl)) {
+  if (auth.mode === 'mock' && isLocalMockApi(settings.apiBaseUrl)) {
     const identity = auth.identity();
     if (!identity) return next(req);
     return next(req.clone({ setHeaders: { 'x-mock-role': identity.role, 'x-mock-sub': identity.subject, 'x-mock-market': identity.markets.join(','), 'x-mock-team': identity.teams.join(',') } }));
   }
-  return next(req);
+  return throwError(() => new Error('Mock mode requires the local Node mock API target.'));
 };
 
-function isLocalMock(base: string): boolean { try { const u = new URL(base, location.origin); return ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname) && u.port === '4301'; } catch { return false; } }
+export function isLocalMockApi(base: string): boolean { try { const u = new URL(base, location.origin); return ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname) && u.port === '4301'; } catch { return false; } }
 function randomText(bytes: number): string { const data = crypto.getRandomValues(new Uint8Array(bytes)); return btoa(String.fromCharCode(...data)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 function decodeJwt(token: string): Record<string, unknown> { return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>; }
 function strings(value: unknown): string[] { return Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : typeof value === 'string' ? [value] : []; }

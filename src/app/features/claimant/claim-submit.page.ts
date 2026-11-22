@@ -199,6 +199,7 @@ type SubmissionStep = 'form' | 'review' | 'confirmation' | 'unknown';
         <section class="unknown" role="alert" aria-labelledby="unknown-title">
           <h2 id="unknown-title">Submission outcome not confirmed</h2>
           <p>{{ submitError() }}</p>
+          <p>Your entered draft is still held in memory on this page. It will not be submitted again automatically.</p>
           <p>We did not submit the claim again. Check your claims before taking further action.</p>
           @if (checkingClaims()) { <p role="status">Refreshing your claim list…</p> }
           @if (listCheckError()) { <p class="form-error">{{ listCheckError() }}</p><button type="button" (click)="checkClaims()">Refresh claim list</button> }

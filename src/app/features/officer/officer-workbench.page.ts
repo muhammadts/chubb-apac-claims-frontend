@@ -14,6 +14,7 @@ import {
   Money,
   StaffDetail,
 } from '../../core/claims-api';
+import { visibleRefresh } from '../../shared/visible-refresh';
 import { isAmbiguousStaffWrite, officerErrorMessage, officerValidationMessages } from './officer-errors';
 
 type PendingConfirmation = 'Approved' | 'Rejected' | 'Settlement' | null;
@@ -399,7 +400,13 @@ export class OfficerWorkbenchPage {
 
   constructor() {
     if (!this.claimId) this.pageError.set('A claim ID is required to open the workbench.');
-    else this.loadDetail();
+    else {
+      this.loadDetail();
+      visibleRefresh(this.settings.claimRefreshIntervalMs).pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          if (!this.pendingAction()) this.loadDetail();
+        });
+    }
   }
 
   actionsDisabled(): boolean { return this.loading() || this.pendingAction() !== null; }

@@ -3,7 +3,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { AppSettings, SETTINGS } from '../../core/auth';
 import { ClaimantDetail, ClaimsApi, InformationRequest } from '../../core/claims-api';
+import { visibleRefresh } from '../../shared/visible-refresh';
 import { claimantErrorMessage, isAmbiguousWriteOutcome } from './claimant-errors';
 
 @Component({
@@ -197,6 +199,7 @@ import { claimantErrorMessage, isAmbiguousWriteOutcome } from './claimant-errors
 export class ClaimDetailPage {
   private readonly api = inject(ClaimsApi);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly settings: AppSettings = inject(SETTINGS);
   private readonly claimId = inject(ActivatedRoute).snapshot.paramMap.get('claimId') ?? '';
   readonly detail = signal<ClaimantDetail | null>(null);
   readonly etag = signal('');
@@ -221,7 +224,13 @@ export class ClaimDetailPage {
 
   constructor() {
     if (!this.claimId) this.error.set('A claim ID is required to view claim details.');
-    else this.loadDetail();
+    else {
+      this.loadDetail();
+      visibleRefresh(this.settings.claimRefreshIntervalMs).pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          if (!this.pendingRequestId()) this.loadDetail(false);
+        });
+    }
   }
 
   refresh(): void {
@@ -278,7 +287,7 @@ export class ClaimDetailPage {
     return Object.values(details).some((value) => value !== undefined && value !== null && value !== '');
   }
 
-  private loadDetail(): void {
+  private loadDetail(refreshRelated = true): void {
     if (!this.claimId || this.loading()) return;
     this.loading.set(true);
     this.detailFresh.set(false);
@@ -289,9 +298,13 @@ export class ClaimDetailPage {
         this.etag.set(result.etag);
         this.detailFresh.set(true);
         this.refreshedAt.set(new Date());
+        this.status.set({ status: result.body.status, submittedAt: result.body.submittedAt });
+        this.statusError.set('');
         this.loading.set(false);
-        this.loadStatus();
-        this.loadTimeline(undefined, true);
+        if (refreshRelated) {
+          this.loadStatus();
+          this.loadTimeline(undefined, true);
+        }
       },
       error: (error: unknown) => {
         this.error.set(claimantErrorMessage(error));

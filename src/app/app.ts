@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { catchError, finalize, of } from 'rxjs';
-import { AuthAdapter, MOCK_PERSONAS, Role, SETTINGS } from './core/auth';
+import { AuthAdapter, isLocalMockApi, MOCK_PERSONAS, Role, SETTINGS } from './core/auth';
 type ConnectionState = 'checking' | 'connected' | 'mock' | 'unavailable';
 interface HealthResponse { mode?: string; }
 
@@ -11,6 +11,7 @@ export class App {
   private readonly http = inject(HttpClient);
   readonly auth = inject(AuthAdapter);
   readonly settings = inject(SETTINGS);
+  readonly canSwitchToMock = isLocalMockApi(this.settings.apiBaseUrl);
   readonly personas = MOCK_PERSONAS;
   readonly connectionState = signal<ConnectionState>('checking');
   readonly checkedAt = signal<Date | null>(null);
@@ -32,7 +33,16 @@ export class App {
   }
   async signIn(): Promise<void> { try { await this.auth.signIn(); } catch (e) { this.authError.set(e instanceof Error ? e.message : 'Sign-in could not be started.'); } }
   switchToMockDemo(): void {
+    if (!this.canSwitchToMock) {
+      this.authError.set('Mock mode is available only when the configured API target is the local Node mock.');
+      return;
+    }
     sessionStorage.setItem('claims.mode', 'mock');
+    location.reload();
+  }
+  switchToConfiguredMode(): void {
+    if (this.settings.configuredMode !== 'api') return;
+    sessionStorage.removeItem('claims.mode');
     location.reload();
   }
   homeFor(role: Role): string { return role === 'Claimant' ? '/claimant/dashboard' : role === 'ClaimsOfficer' ? '/officer/queue' : '/manager/overview'; }

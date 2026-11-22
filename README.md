@@ -36,6 +36,8 @@ Claims officers use `/officer/queue` and `/officer/claims/:claimId`. The queue u
 
 Managers use `/manager/overview`, `/manager/performance`, and `/manager/exposure` for the scoped workload, date-bounded performance, and exposure APIs. Workload and exposure have no client filters; performance dates are entered as UTC boundaries with an inclusive start and exclusive end (`[fromUtc,toUtc)`). Exposure amounts remain separated by market and currency, and the UI presents backend assumptions and missing-reserve counts without deriving totals or targets.
 
+Claimant and officer claim-detail views refresh visible details every 60 seconds by default. Set public `claimRefreshIntervalMs` in `public/claims-config.js` to a value from 30000 to 300000, or `0` to disable refresh. Polling pauses while the document is hidden and is torn down when the detail view is left. The views show the last refresh time. This is periodic REST polling only; there are no push, notification, or browser Kafka updates. Manager reports remain manually refreshed.
+
 ## App shell and identity modes
 
 The shared shell displays role-specific links and lazy-loads the claimant, officer, and manager route areas. These client route guards improve navigation only; the ASP.NET backend remains authoritative for authentication, roles, market/team scope, and resource access.
@@ -43,6 +45,8 @@ The shared shell displays role-specific links and lazy-loads the claimant, offic
 Runtime settings are in `public/claims-config.js`, which is public browser configuration and must never contain secrets. Set `mode` to `mock` for the local demo or `api` for the ASP.NET API. Set `apiBaseUrl` to the same target used by the `/api` development proxy. Mock identity headers are attached only in mock mode when this configured URL uses `localhost`, `127.0.0.1`, or `::1` on port `4301`. The mock selector exposes the explicit local claimant, officer, and manager fixture personas, all scoped to the fixture's `MOCK` market and `MOCK-TEAM` team.
 
 API mode uses a browser Authorization Code + PKCE redirect with settings for `issuer`, `clientId`, `redirectUri`, and optional `scope`. Configure the identity provider to allow the exact redirect URI and public-client token exchange. No client secret or demo token is used. Access tokens stay in memory and are sent as bearer tokens only to app API requests. The current slice does not implement refresh-token renewal; after expiration the user must sign in again. Role parsing is only for navigation visibility and does not grant backend access. If OIDC settings are missing, the shell explains how to configure API sign-in and mock mode remains selectable through runtime configuration.
+
+The shell keeps the configured mode and any temporary mode override separate. Switching from API mode to the local mock is offered only when `apiBaseUrl` points to the local mock on port 4301; API-mode bearer tokens are not attached to that local mock target. If the configured mode is API, a mock session can return to it without changing runtime configuration. A `401` clears the in-memory API identity/token so the sign-in action is available again. No claim data or form drafts are written to local or session storage; session storage is used only for temporary mode selection and OIDC PKCE state.
 
 The backend OpenAPI endpoint was unavailable when this contract layer was prepared. See [contracts/README.md](contracts/README.md): live schema comparison is unverified and the architecture document remains the checked-in contract source.
 

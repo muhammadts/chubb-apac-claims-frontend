@@ -151,6 +151,8 @@ describe('ClaimSubmitPage', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance.step()).toBe('unknown');
+    expect(fixture.componentInstance.payload()?.contact.name).toBe('Claimant');
+    expect(fixture.nativeElement.textContent).toContain('Your entered draft is still held in memory');
     expect(fixture.nativeElement.textContent).toContain('We did not submit the claim again');
     expect(fixture.nativeElement.querySelector('button.primary')).toBeNull();
     http.expectNone((request) => request.url === '/api/v1/claims' && request.method === 'POST');
