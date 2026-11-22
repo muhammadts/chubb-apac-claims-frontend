@@ -1,35 +1,18 @@
-<main class="page-shell">
-  <header class="topbar">
-    <a class="brand" href="/" aria-label="Chubb APAC Claims home">
-      <span class="brand-mark" aria-hidden="true">C</span>
-      <span>Chubb <span class="brand-divider">/</span> Claims</span>
-    </a>
-    <div class="connection" [attr.data-state]="connectionState()" role="status" aria-live="polite">
-      <span class="status-dot" aria-hidden="true"></span>
-      <span>
-        @switch (connectionState()) {
-          @case ('connected') { API connected }
-          @case ('mock') { Mock API connected · Demo data }
-          @case ('unavailable') { API unavailable }
-          @default { Checking connection… }
-        }
-      </span>
-      <button type="button" class="refresh-button" (click)="checkConnection()" [disabled]="connectionState() === 'checking'">
-        Check again
-      </button>
-    </div>
-  </header>
-
-  <section class="welcome" aria-labelledby="welcome-title">
-    <p class="eyebrow">APAC claims platform</p>
-    <h1 id="welcome-title">Claims workspace</h1>
-    <p class="intro">The shared workspace for claimants and claims teams.</p>
-    <div class="setup-note">
-      <span class="note-icon" aria-hidden="true">i</span>
-      <p>Frontend foundation is ready. Workspaces will appear here as each stage is delivered.</p>
-    </div>
-    @if (checkedAt(); as time) {
-      <p class="checked-at">Last connection check: {{ time | date: 'mediumTime' }}</p>
-    }
-  </section>
-</main>
+<div class="page-shell">
+  <header class="topbar"><a class="brand" routerLink="/" aria-label="Chubb APAC Claims home"><span class="brand-mark" aria-hidden="true">C</span><span>Chubb <span class="brand-divider">/</span> Claims</span></a><div class="topbar-right"><span class="mode-badge" [attr.data-mode]="auth.mode" role="status">{{ auth.mode === 'mock' ? 'Mock mode · Demo data' : 'API mode' }}</span><span class="connection" [attr.data-state]="connectionState()" role="status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span>@switch (connectionState()) { @case ('connected') { API connected } @case ('mock') { Mock API connected } @case ('unavailable') { API unavailable } @default { Checking connection… } }</span></div></header>
+  <div class="shell-body">
+    <aside class="sidebar" aria-label="Workspace navigation">
+      <section class="identity-card" aria-label="Current role">
+        @if (auth.identity(); as identity) { <span class="role-badge">{{ roleNames[identity.role] }}</span>@if (auth.mode === 'mock') { <label for="persona">Demo persona</label><select id="persona" [value]="identity.subject" (change)="selectPersona($any($event.target).value)">@for (persona of personas; track persona.subject) { <option [value]="persona.subject">{{ roleNames[persona.role] }}</option> }</select><small>Local fixture identity · {{ identity.markets.join(', ') }} / {{ identity.teams.join(', ') }}</small> } } @else { <span class="role-badge">Signed out</span> }
+      </section>
+      @if (auth.identity()?.role === 'Claimant') { <nav aria-label="Claimant"><h2>Claimant</h2><a routerLink="/claimant/dashboard" routerLinkActive="active">Dashboard</a><a routerLink="/claimant/claims" routerLinkActive="active">Your claims</a><a routerLink="/claimant/claims/new" routerLinkActive="active">Start a claim</a></nav> }
+      @if (auth.identity()?.role === 'ClaimsOfficer') { <nav aria-label="Officer"><h2>Officer</h2><a routerLink="/officer/queue" routerLinkActive="active">Claims queue</a></nav> }
+      @if (auth.identity()?.role === 'Manager') { <nav aria-label="Manager"><h2>Manager</h2><a routerLink="/manager/overview" routerLinkActive="active">Overview</a><a routerLink="/manager/performance" routerLinkActive="active">Performance</a><a routerLink="/manager/exposure" routerLinkActive="active">Exposure</a></nav> }
+      @if (auth.mode === 'api' && !auth.oidcConfigured) { <section class="setup-note" role="status"><strong>Sign-in is not configured</strong><p>Set the OIDC issuer, client ID, and redirect URI in runtime configuration to use API mode.</p><button type="button" class="sign-in" (click)="switchToMockDemo()">Switch to mock demo mode</button></section> }
+      @if (auth.mode === 'api' && auth.oidcConfigured && !auth.identity()) { <button class="sign-in" type="button" (click)="signIn()">Sign in</button> }
+      @if (authError()) { <p class="error" role="alert">{{ authError() }}</p> }
+      @if (checkedAt(); as time) { <small class="checked-at">Connection checked {{ time.toLocaleTimeString() }}</small> }
+      <button type="button" class="refresh-button" (click)="checkConnection()" [disabled]="connectionState() === 'checking'">Check connection</button>
+    </aside><main id="main-content"><router-outlet /></main>
+  </div><footer>Role navigation is a usability aid. The backend remains authoritative for authentication, authorization, and claim scope.</footer>
+</div>

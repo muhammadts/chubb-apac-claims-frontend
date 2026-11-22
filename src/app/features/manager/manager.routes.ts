@@ -1,0 +1,3 @@
+import { Routes } from '@angular/router';
+import { WorkspacePage } from '../workspace-page';
+export const MANAGER_ROUTES: Routes = [{ path: '', component: WorkspacePage, data: { title: 'Manager overview', eyebrow: 'Manager workspace', description: 'Scoped operational reporting.' } }, { path: 'overview', component: WorkspacePage, data: { title: 'Manager overview', eyebrow: 'Manager workspace' } }, { path: 'performance', component: WorkspacePage, data: { title: 'Performance', eyebrow: 'Manager workspace' } }, { path: 'exposure', component: WorkspacePage, data: { title: 'Exposure', eyebrow: 'Manager workspace' } }];

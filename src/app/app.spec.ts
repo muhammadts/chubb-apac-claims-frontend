@@ -1,53 +1,53 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
+import { AuthAdapter, authAdapterProvider, authInterceptor, SETTINGS } from './core/auth';
+import { routes } from './app.routes';
 import { App } from './app';
 
-describe('App connection indicator', () => {
+describe('shared shell and identity modes', () => {
   let http: HttpTestingController;
-
   beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [App],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
-    }).compileComponents();
+    await TestBed.configureTestingModule({ imports: [App], providers: [provideRouter(routes), provideHttpClient(withInterceptors([authInterceptor])), provideHttpClientTesting(), authAdapterProvider()] }).compileComponents();
     http = TestBed.inject(HttpTestingController);
   });
-
   afterEach(() => http.verify());
 
-  it('checks the API health endpoint and shows connected after success', async () => {
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-
-    const request = http.expectOne('/api/health');
-    expect(request.request.method).toBe('GET');
-    request.flush({ status: 'Healthy' });
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain('API connected');
-    expect(fixture.componentInstance.checkedAt()).toBeInstanceOf(Date);
+  it('shows the current mock persona and only its role navigation', async () => {
+    const fixture = TestBed.createComponent(App); fixture.detectChanges();
+    const health = http.expectOne('/api/health');
+    expect(health.request.headers.get('x-mock-role')).toBe('Claimant');
+    health.flush({ mode: 'mock' }); await fixture.whenStable(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Mock mode · Demo data');
+    expect(fixture.nativeElement.textContent).toContain('Your claims');
+    expect(fixture.nativeElement.textContent).not.toContain('Claims queue');
+    fixture.componentInstance.selectPersona('mock-officer'); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Claims queue');
+    expect(fixture.nativeElement.textContent).not.toContain('Your claims');
   });
 
-  it('shows unavailable when the health check fails', async () => {
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-    http.expectOne('/api/health').error(new ProgressEvent('error'));
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain('API unavailable');
-    expect(fixture.componentInstance.checkedAt()).toBeInstanceOf(Date);
+  it('navigates to the selected role home and protects another role route', async () => {
+    const fixture = TestBed.createComponent(App); fixture.detectChanges();
+    http.expectOne('/api/health').flush({ mode: 'mock' }); await fixture.whenStable();
+    fixture.componentInstance.selectPersona('mock-manager'); await fixture.whenStable(); fixture.detectChanges();
+    expect(TestBed.inject(Router).url).toBe('/manager/overview');
+    expect(fixture.nativeElement.textContent).toContain('Manager overview');
+    await TestBed.inject(Router).navigateByUrl('/officer/queue'); await fixture.whenStable(); fixture.detectChanges();
+    expect(TestBed.inject(Router).url).toBe('/forbidden');
+    expect(fixture.nativeElement.textContent).toContain('backend authorization remains authoritative');
   });
 
-  it('marks mock responses as demo data', async () => {
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-    http.expectOne('/api/health').flush({ status: 'Healthy', mode: 'mock' });
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain('Mock API connected · Demo data');
+  it('does not attach mock identity when configured for API mode', async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({ providers: [provideHttpClient(withInterceptors([authInterceptor])), provideHttpClientTesting(), { provide: SETTINGS, useValue: { mode: 'api', apiBaseUrl: 'https://claims.example/api/v1', oidc: {} } }, authAdapterProvider()] }).compileComponents();
+    const client = TestBed.inject((await import('@angular/common/http')).HttpClient);
+    http = TestBed.inject(HttpTestingController);
+    client.get('/api/v1/claims').subscribe();
+    const req = http.expectOne('/api/v1/claims');
+    expect(req.request.headers.has('x-mock-role')).toBe(false);
+    expect(req.request.headers.has('Authorization')).toBe(false);
+    req.flush({ items: [], nextCursor: null });
   });
 });

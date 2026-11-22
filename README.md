@@ -28,6 +28,14 @@ Mock endpoints require mock-only request headers: `x-mock-role` (`Claimant`, `Cl
 
 The typed API service covers the documented claimant, staff, and manager endpoints. It preserves query and JSON field casing, GUID claim route IDs, quoted response ETags and `If-Match`, and separate claimant/staff detail projections. Mock pagination uses an opaque base64url cursor and returns `{ items, nextCursor }`. Mock mutation conflicts return Problem Details with `409`; transitions are limited to documented workflow actions. Manager reports identify fixture assumptions and do not combine currencies or assert SLAs.
 
+## App shell and identity modes
+
+The shared shell displays role-specific links and lazy-loads the claimant, officer, and manager route areas. These client route guards improve navigation only; the ASP.NET backend remains authoritative for authentication, roles, market/team scope, and resource access.
+
+Runtime settings are in `public/claims-config.js`, which is public browser configuration and must never contain secrets. Set `mode` to `mock` for the local demo or `api` for the ASP.NET API. Set `apiBaseUrl` to the same target used by the `/api` development proxy. Mock identity headers are attached only in mock mode when this configured URL uses `localhost`, `127.0.0.1`, or `::1` on port `4301`. The mock selector exposes the explicit local claimant, officer, and manager fixture personas, all scoped to the fixture's `MOCK` market and `MOCK-TEAM` team.
+
+API mode uses a browser Authorization Code + PKCE redirect with settings for `issuer`, `clientId`, `redirectUri`, and optional `scope`. Configure the identity provider to allow the exact redirect URI and public-client token exchange. No client secret or demo token is used. Access tokens stay in memory and are sent as bearer tokens only to app API requests. The current slice does not implement refresh-token renewal; after expiration the user must sign in again. Role parsing is only for navigation visibility and does not grant backend access. If OIDC settings are missing, the shell explains how to configure API sign-in and mock mode remains selectable through runtime configuration.
+
 The backend OpenAPI endpoint was unavailable when this contract layer was prepared. See [contracts/README.md](contracts/README.md): live schema comparison is unverified and the architecture document remains the checked-in contract source.
 
 ## Checks
