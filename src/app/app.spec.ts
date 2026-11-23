@@ -20,7 +20,7 @@ describe('shared shell and identity modes', () => {
     const fixture = TestBed.createComponent(App); fixture.detectChanges();
     const health = http.expectOne('/api/health');
     expect(health.request.headers.get('x-mock-role')).toBe('Claimant');
-    health.flush({ mode: 'mock' }); await fixture.whenStable(); fixture.detectChanges();
+    health.flush('{"mode":"mock"}'); await fixture.whenStable(); fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Mock mode · Demo data');
     expect(fixture.nativeElement.textContent).toContain('Your claims');
     expect(fixture.nativeElement.textContent).not.toContain('Claims queue');
@@ -31,7 +31,7 @@ describe('shared shell and identity modes', () => {
 
   it('navigates to the selected role home and protects another role route', async () => {
     const fixture = TestBed.createComponent(App); fixture.detectChanges();
-    http.expectOne('/api/health').flush({ mode: 'mock' }); await fixture.whenStable();
+    http.expectOne('/api/health').flush('{"mode":"mock"}'); await fixture.whenStable();
     fixture.componentInstance.selectPersona('mock-manager'); await fixture.whenStable(); fixture.detectChanges();
     expect(TestBed.inject(Router).url).toBe('/manager/overview');
     expect(fixture.nativeElement.textContent).toContain('Workload overview');
@@ -39,6 +39,33 @@ describe('shared shell and identity modes', () => {
     await TestBed.inject(Router).navigateByUrl('/officer/queue'); await fixture.whenStable(); fixture.detectChanges();
     expect(TestBed.inject(Router).url).toBe('/forbidden');
     expect(fixture.nativeElement.textContent).toContain('backend authorization remains authoritative');
+  });
+
+  it('distinguishes an unauthenticated API user from a signed-in user with the wrong role', async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [
+        provideRouter(routes),
+        provideHttpClient(withInterceptors([authInterceptor])),
+        provideHttpClientTesting(),
+        { provide: SETTINGS, useValue: { mode: 'api', configuredMode: 'api', apiBaseUrl: '/api/v1', oidc: {}, markets: [], staffDirectory: { teams: [] }, claimRefreshIntervalMs: 0 } },
+        authAdapterProvider(),
+      ],
+    }).compileComponents();
+    http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    http.expectOne('/api/health').flush('Healthy');
+    await fixture.whenStable();
+
+    await TestBed.inject(Router).navigateByUrl('/claimant/dashboard');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(TestBed.inject(Router).url).toBe('/sign-in-required');
+    expect(fixture.nativeElement.textContent).toContain('Sign in with a configured identity provider');
+    expect(fixture.nativeElement.textContent).toContain('API connected');
   });
 
   it('does not attach mock identity when configured for API mode', async () => {
@@ -113,7 +140,7 @@ describe('shared shell and identity modes', () => {
     http = TestBed.inject(HttpTestingController);
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
-    http.expectOne('/api/health').flush({ mode: 'mock' });
+    http.expectOne('/api/health').flush('{"mode":"mock"}');
     await fixture.whenStable();
     fixture.detectChanges();
 

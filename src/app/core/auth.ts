@@ -168,5 +168,7 @@ function strings(value: unknown): string[] { return Array.isArray(value) ? value
 
 export const roleGuard: CanActivateFn = (route) => {
   const auth = inject(AuthAdapter), router = inject(Router), role = route.data['role'] as Role;
-  return auth.identity()?.role === role ? true : router.createUrlTree(['/forbidden']);
+  const identity = auth.identity();
+  if (!identity) return router.createUrlTree(['/sign-in-required']);
+  return identity.role === role ? true : router.createUrlTree(['/forbidden']);
 };
