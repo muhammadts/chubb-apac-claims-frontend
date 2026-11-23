@@ -17,8 +17,8 @@ window.__CLAIMS_CONFIG__ = {
     }],
   },
   oidc: {
-    issuer: '',
-    clientId: '',
+    issuer: 'http://localhost:8080/realms/chubb-claims',
+    clientId: 'chubb-claims-frontend',
     redirectUri: `${window.location.origin}/`,
     scope: 'openid profile',
   },
