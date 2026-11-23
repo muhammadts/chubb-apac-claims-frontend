@@ -1,7 +1,7 @@
 // Public runtime configuration. Replace these values for your deployment; never place secrets here.
 window.__CLAIMS_CONFIG__ = {
-  mode: 'mock',
-  apiBaseUrl: 'http://localhost:4301/api/v1',
+  mode: 'api',
+  apiBaseUrl: '/api/v1',
   // Visible claim-detail refresh interval; set to 0 to disable (allowed range: 30-300 seconds).
   claimRefreshIntervalMs: 60000,
   // Populate only with market codes and display names approved by the backend owner.
@@ -17,8 +17,8 @@ window.__CLAIMS_CONFIG__ = {
     }],
   },
   oidc: {
-    issuer: '',
-    clientId: '',
+    issuer: 'http://localhost:8080/realms/chubb-claims',
+    clientId: 'chubb-claims-frontend',
     redirectUri: `${window.location.origin}/`,
     scope: 'openid profile',
   },

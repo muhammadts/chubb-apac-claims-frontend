@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
-import { catchError, finalize, of } from 'rxjs';
+import { catchError, finalize, map, of } from 'rxjs';
 import { AuthAdapter, isLocalMockApi, MOCK_PERSONAS, Role, SETTINGS } from './core/auth';
 type ConnectionState = 'checking' | 'connected' | 'mock' | 'unavailable';
 interface HealthResponse { mode?: string; }
@@ -23,7 +23,11 @@ export class App {
   }
   checkConnection(): void {
     this.connectionState.set('checking');
-    this.http.get<HealthResponse>('/api/health').pipe(catchError(() => { this.connectionState.set('unavailable'); return of(null); }), finalize(() => this.checkedAt.set(new Date()))).subscribe((response) => { if (response !== null) this.connectionState.set(response.mode === 'mock' ? 'mock' : 'connected'); });
+    this.http.get('/api/health', { responseType: 'text' }).pipe(
+      map((body) => body.trim().startsWith('{') ? JSON.parse(body) as HealthResponse : {}),
+      catchError(() => { this.connectionState.set('unavailable'); return of(null); }),
+      finalize(() => this.checkedAt.set(new Date())),
+    ).subscribe((response) => { if (response !== null) this.connectionState.set(response.mode === 'mock' ? 'mock' : 'connected'); });
   }
   selectPersona(subject: string): void {
     const persona = this.personas.find((p) => p.subject === subject);
